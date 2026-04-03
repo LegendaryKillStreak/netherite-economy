@@ -15,6 +15,7 @@ import net.minecraft.world.level.storage.LevelResource;
 
 import java.io.File;
 import java.util.ArrayList;
+import com.gmail.sneakdevs.diamondeconomy.CurrencyType;
 
 public class DiamondEconomy implements ModInitializer {
     public static final String MODID = "diamondeconomy";
@@ -22,12 +23,22 @@ public class DiamondEconomy implements ModInitializer {
     public static ArrayList<CurrencyType> currencyList = new ArrayList<>();
 
     public static void initServer(MinecraftServer server) {
-        //if (DiamondEconomyConfig.getInstance().databaseType.equals("sqlite")) {
-            DiamondUtils.databaseManager = new SQLiteDatabaseManager();
-            DiamondUtils.registerTable("CREATE TABLE IF NOT EXISTS diamonds (uuid text PRIMARY KEY, name text NOT NULL, money integer DEFAULT 0);");
-            DiamondUtils.registerTable("CREATE TABLE IF NOT EXISTS currencies (item text PRIMARY KEY, sellvalue integer, buyvalue integer, incurrencylist bit, canbuy bit, cansell bit);");
-            SQLiteDatabaseManager.createNewDatabase((DiamondEconomyConfig.getInstance().fileLocation != null) ? (new File(DiamondEconomyConfig.getInstance().fileLocation)) : server.getWorldPath(LevelResource.ROOT).resolve(DiamondEconomy.MODID + ".sqlite").toFile());
-        //}
+        // Initialize DB manager instance
+        DiamondUtils.databaseManager = new SQLiteDatabaseManager();
+
+        // Register tables (money stored as TEXT to support BigInteger)
+        DiamondUtils.registerTable("CREATE TABLE IF NOT EXISTS diamonds (uuid TEXT PRIMARY KEY, name TEXT NOT NULL, money TEXT NOT NULL);");
+        DiamondUtils.registerTable("CREATE TABLE IF NOT EXISTS currencies (item TEXT PRIMARY KEY, sellvalue INTEGER, buyvalue INTEGER, incurrencylist BIT, canbuy BIT, cansell BIT);");
+
+        // Resolve DB file path
+        File dbFile = (DiamondEconomyConfig.getInstance().fileLocation != null)
+                ? new File(DiamondEconomyConfig.getInstance().fileLocation)
+                : server.getWorldPath(LevelResource.ROOT).resolve(DiamondEconomy.MODID + ".sqlite").toFile();
+
+        // Call instance method on the DatabaseManager
+        DiamondUtils.getDatabaseManager().createNewDatabase(dbFile);
+
+        // Ensure main currency exists and populate in-memory list
         DiamondUtils.getDatabaseManager().addCurrency(DiamondEconomyConfig.getInstance().mainCurrency, 1, 1, true, true, true, true);
         DiamondUtils.createCurrencyList();
     }
@@ -41,3 +52,4 @@ public class DiamondEconomy implements ModInitializer {
         DiamondEconomyProvider.init();
     }
 }
+

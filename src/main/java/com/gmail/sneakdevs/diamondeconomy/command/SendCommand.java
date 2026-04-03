@@ -13,6 +13,8 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.math.BigInteger;
+
 public class SendCommand {
     public static LiteralArgumentBuilder<CommandSourceStack> buildCommand(){
         return Commands.literal(DiamondEconomyConfig.getInstance().sendCommandName)
@@ -21,22 +23,50 @@ public class SendCommand {
                                 .then(
                                         Commands.argument("amount", IntegerArgumentType.integer(1))
                                                 .executes(e -> {
-                                                    ServerPlayer player = EntityArgument.getPlayer(e, "player");
+                                                    ServerPlayer target = EntityArgument.getPlayer(e, "player");
                                                     int amount = IntegerArgumentType.getInteger(e, "amount");
-                                                    return sendCommand(e, player, e.getSource().getPlayerOrException(), amount);
+                                                    return sendCommand(e, target, e.getSource().getPlayerOrException(), amount);
                                                 })));
     }
 
-    public static int sendCommand(CommandContext<CommandSourceStack> ctx, ServerPlayer player, ServerPlayer player1, int amount) throws CommandSyntaxException {
+    public static int sendCommand(CommandContext<CommandSourceStack> ctx, ServerPlayer recipient, ServerPlayer sender, int amount) throws CommandSyntaxException {
         DatabaseManager dm = DiamondUtils.getDatabaseManager();
-        long newValue = dm.getBalanceFromUUID(player.getStringUUID()) + amount;
-        if (newValue < Integer.MAX_VALUE && dm.changeBalance(player1.getStringUUID(), -amount)) {
-            dm.changeBalance(player.getStringUUID(), amount);
-            player.displayClientMessage(Component.literal("You received " + DiamondUtils.valueString(amount) + " from " + player1.getName().getString()), false);
-            ctx.getSource().sendSuccess(() -> Component.literal("Sent " + DiamondUtils.valueString(amount) + " to " + player.getName().getString()), false);
-        } else {
-            ctx.getSource().sendSuccess(() -> Component.literal("Failed because that would go over the max value"), false);
+
+        BigInteger amountBI = BigInteger.valueOf(amount);
+        BigInteger senderBal = dm.getBalanceFromUUID(sender.getStringUUID());
+        if (senderBal == null || senderBal.equals(BigInteger.valueOf(-1))) {
+            ctx.getSource().sendFailure(Component.literal("Could not read your balance."));
+            return 0;
         }
+
+        if (senderBal.compareTo(amountBI) < 0) {
+            ctx.getSource().sendFailure(Component.literal("Insufficient funds."));
+            return 0;
+        }
+
+        // Attempt to withdraw from sender first
+        boolean withdrawn = dm.changeBalance(sender.getStringUUID(), amountBI.negate());
+        if (!withdrawn) {
+            ctx.getSource().sendFailure(Component.literal("Failed to withdraw funds (cap or DB error)."));
+            return 0;
+        }
+
+        // Credit recipient
+        boolean credited = dm.changeBalance(recipient.getStringUUID(), amountBI);
+        if (!credited) {
+            // Attempt to rollback withdrawal
+            boolean rollback = dm.changeBalance(sender.getStringUUID(), amountBI);
+            if (!rollback) {
+                ctx.getSource().sendFailure(Component.literal("Critical error: transfer failed and rollback unsuccessful. Contact an admin."));
+                return 0;
+            }
+            ctx.getSource().sendFailure(Component.literal("Transfer failed; your balance was restored."));
+            return 0;
+        }
+
+        recipient.displayClientMessage(Component.literal("You received " + DiamondUtils.valueString(amountBI) + " from " + sender.getName().getString()), false);
+        ctx.getSource().sendSuccess(() -> Component.literal("Sent " + DiamondUtils.valueString(amountBI) + " to " + recipient.getName().getString()), false);
+
         return 1;
     }
 }

@@ -1,4 +1,12 @@
-Basic economy for the fabric modloader using diamonds as currency. Uses the "/diamonds" command along with the following subcommands
+LegendaryKillStreak's Fork for "Diamond Economy" from IAmSneak, due to the Max Money Limit beeing far too low.
+
+
+
+
+Original README Text from "IAmSneak":
+
+"Basic economy for the fabric modloader using diamonds as currency. Uses the "/diamonds" command along with the following subcommands
+
 
 - balance [Optional: player] - tells user how much money the player has
 
@@ -30,4 +38,4 @@ Placeholders:
 
 Downloads:
 - https://www.curseforge.com/minecraft/mc-mods/diamond-economy
-- https://modrinth.com/mod/diamond-economy
+- https://modrinth.com/mod/diamond-economy"
